@@ -5,11 +5,17 @@ import time
 global cond_sp
 global syn_amp
 
-def updateSum(y):
+def updateSum(time, y):
 	global cond_sp
 	global syn_amp
+	global spike_or_nah
 	sum = 0
+	s = np.exp(-time / 2)
 	for a in range(0, 40):
+		if spike_or_nah[a] == -1:
+			syn_amp[a] = s
+		elif spike_or_nah[a] == 0:
+			syn_amp[a] = s + 1
 		sum += cond_sp[a] * syn_amp[a] * -y
 	return sum
 		
@@ -30,12 +36,6 @@ def updateCon(a_neg, a_plus, t_neg, t_plus, deltat):
 	elif deltat > 0:
 		result = a_plus * np.exp(-abs(deltat) / t_plus)
 	return result
-
-def initAmp(time):
-	global syn_amp
-	s = np.exp(-time / 2)
-	for i in range(0, 40):
-		syn_amp[i] = s
 
 		
 def main():
@@ -92,68 +92,46 @@ def main():
 	
 	global syn_amp
 	syn_amp = np.array([])
-	for i in range(0, 40):
-		syn_amp = np.append(syn_amp, 0)
+	for a in range(0, 40):
+		syn_amp = np.append(syn_amp, s)
 	
+	global spike_or_nah
 	spike_or_nah = np.array([])
-	for i in range(0, 40):
+	for b in range(0, 40):
 		spike_or_nah = np.append(spike_or_nah, -1)
         
     
 	y[0] = y0
-	
+	sum = updateSum(0, y[0])
     
 	for i in range(1, n):
-		# keep track of time
-		time_ms = i
-		# initialise prob of synaptic inputs
+		time_ms = i - 1
 		sp = spikes(sp)
-		# initialise s
-		initAmp(time_ms)
-		#print cond_sp
-		#print syn_amp
-		# check if there were spikes last time
-		for a in spike_or_nah:
-			if spike_or_nah[a] == 0:
-				syn_amp[a] += 1
-		# update sum of synaptic inputs
-		sum = updateSum(y[i])
-		# reset array
-		for b in spike_or_nah:
-			spike_or_nah[b] = -1
-		# euler method
-		y[i] = deltax * (((-y[i-1] + v) / m + sum) / c) + y[i-1]
-		# check for spikes in synaptic input
-		for j in range(0, 40):
+		y[i] = deltax * (((-(y[i-1] - v) / m) + sum) / c) + y[i-1]
+		sum = updateSum(time_ms, y[i])
+		for d in range(0, 40):
+			spike_or_nah[d] = -1
+		for j in range(0, len(sp)):
 			if sp[j] < (f_rate * deltax):
-				# store time
 				pre_times = np.append(pre_times, time_ms)
-				# find delta t
 				deltat = post_times[len(post_times)-1] - pre_times[len(pre_times)-1]
-				# update spike conductance
 				cond_sp[j] += updateCon(a_neg, a_plus, t_neg, t_plus, deltat)
-				# check conductance limits
 				if cond_sp[j] > 2.0:
 					cond_sp[j] = 2.0
 				elif cond_sp[j] < 0:
 					cond_sp[j] = 0
 				spike_or_nah[j] = 0
-		# check if spike happened
 		if y[i] > s:
-			# reset y
 			y[i] = r
-			# store time
 			post_times = np.append(post_times, time_ms)
-			# find delta t
 			deltat = post_times[len(post_times)-1] - pre_times[len(pre_times)-1]
 			# update all conductances
-			for k in range(0, 40):
+			for k in range(0, len(cond_sp)):
 				cond_sp[j] += updateCon(a_neg, a_plus, t_neg, t_plus, deltat)
 				if cond_sp[j] > 2.0:
 					cond_sp[j] = 2.0
 				elif cond_sp[j] < 0:
 					cond_sp[j] = 0
-
 	
 	plt.plot(x, y, 'o')
 	plt.margins(0.05)
